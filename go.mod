@@ -1,4 +1,4 @@
-module github.com/r7com/go-recaptcha-v3
+module github.com/r7com/go-hcaptcha
 
 require (
 	github.com/jarcoal/httpmock v1.0.5
