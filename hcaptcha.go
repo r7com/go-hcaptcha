@@ -23,11 +23,10 @@ import (
 // Response holds the response provided by
 // google hcaptcha
 type Response struct {
-	Success     bool      `json:"success"`
-	Score       float32   `json:"score"`
-	ChallengeTS time.Time `json:"challenge_ts"`
-	Hostname    string    `json:"hostname"`
-	ErrorCodes  []string  `json:"error-codes"`
+	Success    bool     `json:"success"`
+	Score      float32  `json:"score"`
+	Hostname   string   `json:"hostname"`
+	ErrorCodes []string `json:"error-codes"`
 }
 
 const hcaptchaServerName = "https://hcaptcha.com/siteverify"
@@ -40,7 +39,7 @@ var postError bool
 func check(ctx context.Context, response string) (r Response, err error) {
 	postError = false
 
-	resp, err := performRecaptchaRequest(ctx, response)
+	resp, err := performCaptchaRequest(ctx, response)
 
 	if err != nil {
 		log.Printf("Post error: %s\n", err)
@@ -61,12 +60,10 @@ func check(ctx context.Context, response string) (r Response, err error) {
 		return
 	}
 
-	fmt.Println("Captcha payload", r)
-
 	return
 }
 
-func performRecaptchaRequest(ctx context.Context, response string) (*http.Response, error) {
+func performCaptchaRequest(ctx context.Context, response string) (*http.Response, error) {
 	netClient := apmhttp.WrapClient(&http.Client{
 		Timeout: time.Duration(timeResponse) * time.Second,
 	})
@@ -78,30 +75,38 @@ func performRecaptchaRequest(ctx context.Context, response string) (*http.Respon
 	return netClient.Do(request.WithContext(ctx))
 }
 
-// Confirm is the public interface function.
-// It calls check, which the client ip address, the challenge code from the hCaptcha form,
-// and the client's response input to that challenge to determine whether or not
-// the client answered the hCaptcha input question correctly.
-// It returns a boolean value indicating whether or not the client answered correctly.
+// Confirm adds a default context and calls CConfirmWithContext
 func Confirm(response, ip string) (result bool, err error) {
 	return ConfirmWithContext(context.Background(), response, ip)
 }
 
-// ConfirmWithContext ...
+// ConfirmWithContext is the public interface function.
+// It calls check, which the client ip address, the challenge code from the hCaptcha form,
+// and the client's response input to that challenge to determine whether or not
+// the client answered the hCaptcha input question correctly.
+// It returns a boolean value indicating whether or not the client answered correctly.
 func ConfirmWithContext(ctx context.Context, response string, ip string) (result bool, err error) {
 	result = false
 	resp, err := check(ctx, response)
 
-	if resp.Success == true && resp.Score < hcaptchaScore {
-		result = true
+	if resp.Success == true {
+		if resp.Score < hcaptchaScore {
+			result = true
+			log.Printf("[%v] Captcha: Valid token with risk score of %f\n", ip, resp.Score)
+		} else {
+			result = false
+			log.Printf("[%v] Captcha: Valid token but refused due high risk score(got: %f, expected: %f)", ip, resp.Score, hcaptchaScore)
+		}
+		return
 	}
 
 	if postError == true {
+		log.Printf("[%v] Unable to verify captcha due request error", ip)
 		result = true
+		return
 	}
 
-	logCaptchaResult(result, resp.Score, ip)
-
+	log.Printf("[%v] Captcha: Invalid token", ip)
 	return
 }
 
@@ -111,18 +116,4 @@ func Init(key string, score float32, time int) {
 	hcaptchaPrivateKey = key
 	hcaptchaScore = score
 	timeResponse = time
-}
-
-func logCaptchaResult(success bool, score float32, ip string) {
-	if success {
-		log.Printf("[%v] Captcha: Valid token with score of %f\n", ip, score)
-		return
-	}
-
-	// if score > 0 {
-	// 	log.Printf("[%v] Captcha: Valid token but refused due high risk score(got: %f, expected: %f)", ip, score, hcaptchaScore)
-	// 	return
-	// }
-
-	log.Printf("[%v] Captcha: Invalid token", ip)
 }
