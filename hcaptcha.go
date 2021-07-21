@@ -36,10 +36,10 @@ var hcaptchaScore float32
 var timeResponse int
 var postError bool
 
-func check(ctx context.Context, response string) (r Response, err error) {
+func check(ctx context.Context, response string, ip string) (r Response, err error) {
 	postError = false
 
-	resp, err := performCaptchaRequest(ctx, response)
+	resp, err := performCaptchaRequest(ctx, response, ip)
 
 	if err != nil {
 		log.Printf("Post error: %s\n", err)
@@ -63,12 +63,18 @@ func check(ctx context.Context, response string) (r Response, err error) {
 	return
 }
 
-func performCaptchaRequest(ctx context.Context, response string) (*http.Response, error) {
+func performCaptchaRequest(ctx context.Context, response string, ip string) (*http.Response, error) {
 	netClient := apmhttp.WrapClient(&http.Client{
 		Timeout: time.Duration(timeResponse) * time.Second,
 	})
 
-	payload := url.Values{"secret": {hcaptchaPrivateKey}, "response": {response}}
+	payload := url.Values{
+		"secret":   {hcaptchaPrivateKey},
+		"response": {response},
+		"remoteip": {ip},
+	}
+
+	log.Printf("[%v] Validating captcha challenge result\n", ip)
 
 	request, _ := http.NewRequest("POST", hcaptchaServerName, strings.NewReader(payload.Encode()))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -87,9 +93,9 @@ func Confirm(response, ip string) (result bool, err error) {
 // It returns a boolean value indicating whether or not the client answered correctly.
 func ConfirmWithContext(ctx context.Context, response string, ip string) (result bool, err error) {
 	result = false
-	resp, err := check(ctx, response)
+	resp, err := check(ctx, response, ip)
 
-	if resp.Success == true {
+	if resp.Success {
 		if resp.Score < hcaptchaScore {
 			result = true
 			log.Printf("[%v] Captcha: Valid token with risk score of %f\n", ip, resp.Score)
@@ -100,7 +106,7 @@ func ConfirmWithContext(ctx context.Context, response string, ip string) (result
 		return
 	}
 
-	if postError == true {
+	if postError {
 		log.Printf("[%v] Unable to verify captcha due request error", ip)
 		result = true
 		return
