@@ -81,8 +81,8 @@ func performCaptchaRequest(ctx context.Context, response string, ip string) (*ht
 	return netClient.Do(request.WithContext(ctx))
 }
 
-// Confirm adds a default context and calls CConfirmWithContext
-func Confirm(response, ip string) (result bool, err error) {
+// Confirm adds a default context and calls ConfirmWithContext
+func Confirm(response, ip string) (result bool, score float32, err error) {
 	return ConfirmWithContext(context.Background(), response, ip)
 }
 
@@ -91,17 +91,19 @@ func Confirm(response, ip string) (result bool, err error) {
 // and the client's response input to that challenge to determine whether or not
 // the client answered the hCaptcha input question correctly.
 // It returns a boolean value indicating whether or not the client answered correctly.
-func ConfirmWithContext(ctx context.Context, response string, ip string) (result bool, err error) {
+func ConfirmWithContext(ctx context.Context, response string, ip string) (result bool, score float32, err error) {
 	result = false
+	score = 0.0
 	resp, err := check(ctx, response, ip)
 
 	if resp.Success {
+		score = resp.Score
 		if resp.Score < hcaptchaScore {
 			result = true
 			log.Printf("[%v] Captcha: Valid token with risk score of %f\n", ip, resp.Score)
 		} else {
 			result = false
-			log.Printf("[%v] Captcha: Valid token but refused due high risk score(got: %f, expected: %f)", ip, resp.Score, hcaptchaScore)
+			log.Printf("[%v] Captcha: Valid token but refused due high risk score(got: %f, expected: < %f)", ip, resp.Score, hcaptchaScore)
 		}
 		return
 	}

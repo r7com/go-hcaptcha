@@ -19,12 +19,13 @@ func TestConfirm(t *testing.T) {
 		httpResponseStatus  int
 		httpResponseMessage string
 		expectedResult      bool
+		expectedScore       float32
 		errorMessage        string
 	}{
-		{"0.5", 200, `{"success": true, "score": 0.9}`, false, "It must be considered a threat"},
-		{"0.5", 200, `{"success": true, "score": 0.2}`, true, "It must be considered a safe request"},
-		{"0.5", 200, `{"success": false}`, false, "It must be false when google doesnt return a score"},
-		{"0.5", 500, `{"success": false}`, false, "It must be false when google returns an error"},
+		{"0.5", 200, `{"success": true, "score": 0.9}`, false, 0.9, "It must be considered a threat"},
+		{"0.5", 200, `{"success": true, "score": 0.2}`, true, 0.2, "It must be considered a safe request"},
+		{"0.5", 200, `{"success": false}`, false, 0.0, "It must be false when google doesnt return a score"},
+		{"0.5", 500, `{"success": false}`, false, 0.0, "It must be false when google returns an error"},
 	}
 
 	for _, test := range tests {
@@ -33,9 +34,10 @@ func TestConfirm(t *testing.T) {
 
 		score, _ := strconv.ParseFloat(test.score, 32)
 		Init("SOME_KEY", float32(score), 2)
-		result, _ := Confirm("test", "1.1.1.1")
+		result, resultScore, _ := Confirm("test", "1.1.1.1")
 
 		assert.Equal(t, test.expectedResult, result, test.errorMessage)
+		assert.Equal(t, test.expectedScore, resultScore, test.errorMessage)
 	}
 }
 
@@ -55,7 +57,7 @@ func TestConfirmSlowResponse(t *testing.T) {
 
 	score, _ := strconv.ParseFloat("0.5", 32)
 	Init("SOME_KEY", float32(score), 2)
-	result, _ := Confirm("test", "1.1.1.1")
+	result, _, _ := Confirm("test", "1.1.1.1")
 
 	assert.Equal(t, true, result, "Timeout expired!")
 
@@ -78,7 +80,7 @@ func TestConfirmSlowResponse(t *testing.T) {
 
 		score, _ := strconv.ParseFloat(test.score, 32)
 		Init("SOME_KEY", float32(score), 2)
-		result, _ := Confirm("test", "1.1.1.1")
+		result, _, _ := Confirm("test", "1.1.1.1")
 
 		assert.Equal(t, test.expectedResult, result, test.errorMessage)
 	}
