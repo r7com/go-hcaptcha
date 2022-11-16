@@ -96,6 +96,7 @@ func ConfirmWithContext(ctx context.Context, response string, ip string) (result
 	score = 0.0
 	resp, err := check(ctx, response, ip)
 
+	log.Printf("[%v] Captcha: User token: %s\n", ip, response)
 	if resp.Success {
 		score = resp.Score
 		if resp.Score < hcaptchaScore {
